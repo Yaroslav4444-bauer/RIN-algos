@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title> RemovingImageNoice algorithms!</title>
+	<link rel="stylesheet" type="text/css" href="css/header.css" charset="utf-8">
+	<link rel="stylesheet" type="text/css" href="css/body.css" charset="utf-8">
+	<meta name="description" content="Механизмы избавления изображения от шума! 5 алгоритмов на ВАШ выбор">
+	<meta name="keywords" content="RIN-algos, RIN, шумоподавление, избавление изображения от шума, removing image noise">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link href="img/uranus_planet_icon_263077.ico" rel="shortcut icon" type="image/x-icon">
+</head>
+<body>
+	<header>
+      	<div id="logo">
+          	<img src="img/7eaf4702e4b911efa9478e56af3199ab_1.jpg" title="rin-algos.ru" alt="rin-algos.ru">
+			<span> RIN-algos.ru </span>
+      	</div>
+      	<div id="welcom"> 
+      		<span> Добро пожаловать! :) </span>
+      	</div>
+	</header>
+	<div id="main">
+		<div id="title1">
+			<h2 class="mainhead"> Здесь Вы сможете избавить изображение от шума, с использлванием любого алгоритма на Ваше усмотрение! </h2>
+			<div style="clear: both;"><br></div>
+		</div>
+		<div id="title2">
+			<div style="clear: both;"><br></div>
+
+			<!-- Форма загрузки -->
+			<form id="uploadForm" enctype="multipart/form-data">
+			    <input type="file" id="imageInput" name="image" accept="image/*" required>
+			    <input type="hidden" id="algoInput" name="algorithm" value="1">
+			</form>
+			<img id="preview" style="max-width:300px;display:none;">
+			<div id="result"></div>
+
+			<h2 class="heading"> Выберете один из следующих алгоритмов: </h2>
+			<div style="clear: both;"><br></div>
+
+			<div id="algos">
+			    <div class="bottons" data-algo="1">Фильтр среднего</div>
+			    <div class="bottons" data-algo="2">Медианный фильтр</div>
+			    <div class="bottons" data-algo="3">Размытие по Гауссу</div>
+			    <div style="clear: both;"><br></div>
+			    <div class="bottons" data-algo="4">Нелокальный NLM</div>
+			    <div class="bottons" data-algo="5">ApproxiP2EPEN.</div>
+			</div>
+			<div style="clear: both;"><br></div>
+			
+			<button id="processButton" class="bottons" style="margin-top: 20px;">Обработать изображение</button>
+
+			<script>
+			let selectedAlgo = 1;
+			let uploadedImage = null;
+
+			// Функция проверки доступности сервера
+			async function checkServer() {
+			    try {
+			        const response = await fetch('http://localhost:5000/health');
+			        if (response.ok) {
+			            console.log('Server is available');
+			            return true;
+			        }
+			    } catch (error) {
+			        console.error('Server is not available:', error);
+			        return false;
+			    }
+			}
+
+			// Обработка выбора алгоритма
+			document.querySelectorAll('#algos .bottons').forEach((btn) => {
+			    btn.addEventListener('click', () => {
+			        console.log('Выбран алгоритм:', btn.dataset.algo);
+			        selectedAlgo = btn.dataset.algo;
+			        document.getElementById('algoInput').value = selectedAlgo;
+			        document.querySelectorAll('#algos .bottons').forEach(b => b.style.background = '');
+			        btn.style.background = '#aaf';
+			    });
+			});
+
+			// Обработка загрузки изображения
+			document.getElementById('imageInput').addEventListener('change', function(e) {
+			    const file = e.target.files[0];
+			    if (file) {
+			        console.log('Загружено изображение:', file.name);
+			        uploadedImage = file;
+			        const reader = new FileReader();
+			        reader.onload = function(ev) {
+			            document.getElementById('preview').src = ev.target.result;
+			            document.getElementById('preview').style.display = 'block';
+			        };
+			        reader.readAsDataURL(file);
+			    }
+			});
+
+			// Функция обработки изображения
+			async function processImage() {
+			    console.log('Starting image processing...');
+			    
+			    // Проверяем доступность сервера
+			    if (!await checkServer()) {
+			        document.getElementById('result').innerHTML = `
+			            <div class="error-message">
+			                Сервер недоступен. Пожалуйста, убедитесь, что сервер запущен по адресу http://localhost:5000
+			            </div>
+			        `;
+			        return;
+			    }
+
+			    if (!uploadedImage) {
+			        alert('Пожалуйста, сначала загрузите изображение!');
+			        return;
+			    }
+
+			    const formData = new FormData();
+			    formData.append('image', uploadedImage);
+			    formData.append('algorithm', selectedAlgo);
+
+			    // Показываем индикатор загрузки
+			    document.getElementById('result').innerHTML = 'Обработка изображения...';
+
+			    try {
+			        console.log('Sending request to server...');
+			        const response = await fetch('http://localhost:5000/process', {
+			            method: 'POST',
+			            body: formData
+			        });
+
+			        if (!response.ok) {
+			            throw new Error(`HTTP error! status: ${response.status}`);
+			        }
+
+			        console.log('Received response from server');
+			        const blob = await response.blob();
+			        const url = URL.createObjectURL(blob);
+			        
+			        document.getElementById('result').innerHTML = `
+			            <div class="result-container">
+			                <img src="${url}" style="max-width:300px; margin: 10px 0;">
+			                <div class="download-button">
+			                    <a href="${url}" download="denoised.png" class="bottons">Скачать обработанное изображение</a>
+			                </div>
+			            </div>
+			        `;
+			    } catch (error) {
+			        console.error('Error:', error);
+			        document.getElementById('result').innerHTML = `
+			            <div class="error-message">
+			                Ошибка: ${error.message}<br>
+			                Убедитесь, что сервер запущен и доступен по адресу http://localhost:5000
+			            </div>
+			        `;
+			    }
+			}
+
+			// Обработчик для кнопки обработки
+			document.getElementById('processButton').addEventListener('click', processImage);
+			</script>
+
+			<div style="clear: both;"><br></div>
+		</div>
+	</div>
+	<aside>
+		<img src="img/7e9f48b1e7f511efa56e2265b1c09b10_1.jpg" title="PlanetsRIN" alt="rin-algos.ru1">
+	</aside>
+	<div style="clear: both;"><br></div>
+	<div id="textalg">
+		<h2 class="mainhead"> Немного информации об алгоритмах </h2>
+		<div style="clear: both;"><br></div>
+		<div id="alg1">
+			<h2 class="heading2"> 1. Фильтрация по среднему значению </h2>
+			<div style="clear: both;"><br></div>
+			<h2 class="text"> Средний фильтр работает, перемещаясь по изображению от пикселя к пикселю и заменяя каждое значение средним значением соседних пикселей, включая себя. </h2>
+			<div style="clear: both;"><br></div>
+			<div id="imgalg1">
+				<img src="img/alg101.png" title="Median Filter" alt="rin-algos.ru2">
+				<img src="img/alg102.png" title="Median Filter" alt="rin-algos.ru3">
+			</div>
+		</div>
+		<div style="clear: both;"><br></div>
+		<div id="alg2">
+			<h2 class="heading2"> 2. Медианный фильтр </h2>
+			<div style="clear: both;"><br></div>
+			<h2 class="text"> Медианный фильтр — это нелинейный цифровой фильтр, который используется для удаления импульсного шума из изображений. Он заменяет значение пикселя в изображении медианой значений пикселей в его окрестности, что позволяет эффективно устранять шум, сохраняя края и детали изображения. <br><br>
+	Алгоритм работы медианного фильтра: <br>
+	1. Выбирается размер окна фильтрации, обычно квадратное окно (например, 3×3, 5×5). <br>
+	2. Окно перемещается по изображению, и на каждом шаге значения пикселей внутри окна сортируются. <br>
+	3. Среднее значение (медиана) этих отсортированных значений заменяет центральный пиксель окна. <br>
+	4. Этот процесс повторяется для каждого пикселя изображения, что приводит к уменьшению шума при сохранении важной информации. <br><br>
+	Так, для окрестности 3×3 элементов медианой будет пятое значение по величине, для окрестности 5×5 — тринадцатое значение и так далее. </h2>
+			<div style="clear: both;"><br></div>
+			<div id="imgalg2">
+				<img src="img/alg201.png" title="Median Filter" alt="rin-algos.ru4">
+				<img src="img/alg202.png" title="Median Filter" alt="rin-algos.ru5">
+			</div>
+		</div>
+		<div style="clear: both;"><br></div>
+		<div id="alg3">
+			<h2 class="heading2"> 3. Размытие по Гауссу </h2>
+			<div style="clear: both;"><br></div>
+			<h2 class="text"> Размытие по Гауссу — это алгоритм для избавления изображения от шума. Он заключается в том, что новое значение каждого пикселя устанавливается равным средневзвешенному значению окрестности этого пикселя. Значение исходного пикселя получает наибольший вес, а соседние пиксели получают меньшие веса по мере увеличения их расстояния до исходного пикселя. <br><br>
+	Этот метод приводит к уменьшению высокочастотных шумов, которые являются мелкими деталями и краями, и позволяет получить более плавное изображение. Стандартное отклонение (сигма) функции Гаусса управляет уровнем сглаживания: <br>
+	Маленькая сигма — меньшее сглаживание, которое сохраняет больше черт и деталей объектов и поверхностей. <br>
+	Большая сигма — больше сглаживания, которое способно даже размыть важные черты. <br><br>
+	Размытие по Гауссу также используется в качестве этапа предварительной обработки в алгоритмах компьютерного зрения для улучшения структуры изображения в различных масштабах. </h2>
+			<div style="clear: both;"><br></div>
+			<div id="imgalg3">
+				<img src="img/alg301.png" title="Gaussian Blur" alt="rin-algos.ru6">
+				<img src="img/alg302.png" title="Gaussian Blur" alt="rin-algos.ru7">
+			</div>
+		</div>
+		<div style="clear: both;"><br></div>
+		<div id="alg4">
+			<h2 class="heading2"> 4. Нелокальный алгоритм сглаживания (NLM) </h2>
+			<div style="clear: both;"><br></div>
+			<h2 class="text"> Основная идея состоит в том, чтобы использовать всю информацию на изображении, а не только пиксели, соседние с обрабатываемым. <br><br>
+	Принцип работы: нелокальный сглаживающий фильтр находит похожие области изображения и применяет информацию из них для взаимного усреднения. <br><br>
+	В отличие от фильтров локального среднего, которые принимают среднее значение группы пикселей, окружающих целевой пиксель, при фильтрации нелокальных средних используется среднее значение всех пикселей изображения, взвешенное по тому, насколько эти пиксели похожи на целевой пиксель. Это приводит к большей чёткости после фильтрации и меньшей потере детализации изображения по сравнению с алгоритмами локального среднего. </h2>
+			<div style="clear: both;"><br></div>
+			<div id="imgalg4">
+				<img src="img/alg401.png" title="Non-local Smoothing Algorithm" alt="rin-algos.ru8">
+				<img src="img/alg402.png" title="Non-local Smoothing Algorithm" alt="rin-algos.ru9">
+			</div>
+		</div>
+		<div style="clear: both;"><br></div>
+		<div id="alg5"> 
+			<h2 class="heading2"> 5. Авторский алгоритм ApproxiP2EPEN </h2>
+			<div style="clear: both;"><br></div>
+			<h2 class="text"> Основная идея алгоритма состоит в том, что для каждого пикселя изображения строится окно 5х5. По локальным характеристикам окна (дисперсия, магнитуда градиента, модуль лапласиана) определяются аппроксимирующие функции (полином 2-й степени, положительная и отрицательная экспоненты), строящиеся по значениям интенсивностей пикселей. В итоге интенсивность пикселя заменяется на значение той функции в точке (0, 0), при котором модуль лапласиана изменённого окна окажется наименьшим. <br><br>
+			Алгоритм выполняется, если значение модуля лапласиана выше порогового. При высоком пороге алгоритм подходит для устранения импульсного шума. При низком/нулевом пороге - для устранения других типов шума.</h2>
+			<div style="clear: both;"><br></div>
+			<div id="imgalg5">
+				<img src="img/alg501.jpg" title="Non-local Smoothing Algorithm" alt="rin-algos.ru10">
+				<img src="img/alg502.png" title="Non-local Smoothing Algorithm" alt="rin-algos.ru11">
+			</div>
+		</div>
+	</div>
+	<div style="clear: both;"><br></div>
+</body>
+</html>
